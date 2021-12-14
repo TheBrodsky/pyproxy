@@ -12,7 +12,7 @@ DOUBLE_FACED_LAYOUTS = {"transform", "modal_dfc", "meld"}
 
 nest_asyncio.apply()
 
-def proxy_from_card_list(file, out_dir, img_size=(745, 1040), border_width=37):
+def proxy_from_card_list(file, out_dir, img_size=(745, 1040), border_width=37, doubles_first=False):
     '''
     Generates proxied, serialized copies of cards according to a card list
     
@@ -25,7 +25,7 @@ def proxy_from_card_list(file, out_dir, img_size=(745, 1040), border_width=37):
         os.mkdir(out_dir)
     
     double_side_backlog = [] # list of tuples (quantity, card, name)
-    i = 0
+    i = 1
     for line in open(file, "r"):
         line = line.strip()
         quantity, name, set_id = parse_card_name(line)
@@ -41,7 +41,7 @@ def proxy_from_card_list(file, out_dir, img_size=(745, 1040), border_width=37):
                 _create_proxy(img, i, name, out_dir)
                 i += 1
         
-    _process_double_side_backlog(double_side_backlog, out_dir, i, img_size, border_width)
+    _process_double_side_backlog(double_side_backlog, out_dir, i, img_size, border_width, doubles_first)
 
 def get_card_from_string(card_string):
     quantity, name, set_id = parse_card_name(card_string)
@@ -95,7 +95,7 @@ def parse_card_name(card_name):
 def is_double_sided(card):
    return card.layout() in DOUBLE_FACED_LAYOUTS
 
-def _process_double_side_backlog(backlog, out_dir, index, img_size, border_width):
+def _process_double_side_backlog(backlog, out_dir, index, img_size, border_width, doubles_first):
     '''helper for handling double sided cards. Expects a list of double sided cards;
     proxies all front sides and then all back sides'''
     back_faces = []
@@ -106,22 +106,23 @@ def _process_double_side_backlog(backlog, out_dir, index, img_size, border_width
         front_img = _add_border_to_image(_get_image_from_uri(front_uri).resize(img_size), border_width)
         sleep(0.05) # 50 ms sleep for politeness
         for j in range(quantity):
-            _create_proxy(front_img, index, name, out_dir)
+            _create_proxy(front_img, index, name, out_dir, False, doubles_first)
             index += 1
     
     for quantity, uri, name in back_faces:
         back_img = _add_border_to_image(_get_image_from_uri(uri).resize(img_size), border_width)
         sleep(0.05) # 50 ms sleep for politeness
         for j in range(quantity):
-            _create_proxy(back_img, index, name, out_dir)
+            _create_proxy(back_img, index, name, out_dir, False, doubles_first)
             index += 1
     
 def _get_image_from_uri(uri):
     request = requests.get(uri)
     return Image.open(BytesIO(request.content))
 
-def _create_proxy(image, index, name, out_dir):
-    path = os.path.join(out_dir, f"{index}_{name}.png")
+def _create_proxy(image, index, name, out_dir, is_single_faced=True, doubles_first=False):
+    id_char = "1" if is_single_faced else ("0" if doubles_first else "2")
+    path = os.path.join(out_dir, id_char + f"-{index}_{name}.png")
     image.save(path)
 
 def _add_border_to_image(image, border_width):
